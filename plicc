@@ -22,7 +22,7 @@ Usage: plicc [options] <source.pli|.pl1>... [object.o|archive.a]...
   Compile PL/I source files and link into a Linux executable.
 
 Options:
-  --cinterop       Link with C interop modules (fhs.o, ghs.o)
+  --cinterop       Use when linking with externally compiled static libraries or object files
   --compile        Compile only, do not link
   --out <name>     Output executable name (default: basename of first .pli)
   --verbose        Show progress messages
