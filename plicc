@@ -89,6 +89,7 @@ for pli in "${pli_files[@]+"${pli_files[@]}"}"; do
   say "compiling $pli → $obj"
   $PLIC -C -dELF $PLIINC ${cc_flags[@]+"${cc_flags[@]}"} "$pli" -o "$obj" \
     || die "compilation failed: $pli"
+  rm -f "${base}.lst"
   obj_files+=("$obj")
 done
 
