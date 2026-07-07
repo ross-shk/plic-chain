@@ -1,0 +1,130 @@
+#!/bin/bash
+# plicc - compile and link PL/I source with Iron Spring in one command
+# Copyright 2026 Ross Shkurat
+# SPDX-License-Identifier: Apache-2.0
+
+# Exit on undefined variable (catches typos) and pipeline failures
+set -o nounset
+set -o pipefail
+
+# All variables overridable via the environment
+PLIC="${PLIC:-plic}"                               # PL/I compiler
+CCLD="${CCLD:-gcc}"                                # C linker driver
+LDFLAGS="${LDFLAGS:--m32 -no-pie -z muldefs}"      # linker flags
+LIBS="${LIBS:--lprf}"                              # PL/I runtime library
+CINTEROP_LIBS="${CINTEROP_LIBS:-/usr/lib/pli/alt/fhs.o /usr/lib/pli/alt/ghs.o}"
+PLIINC="${PLIINC:--i/usr/lib/pli/include -i/usr/local/include}"  # -i = plic include dir
+
+usage() {
+  cat >&2 <<'EOF'
+PL/I Compiler Toolchain
+
+Usage: plicc [options] <source.pli>... [object.o|archive.a]... [-llib]...
+  Compile PL/I source files and link into a Linux executable.
+
+Options:
+  --cinterop       Use when linking with externally compiled object files or libraries
+  -o <name>        Name the output executable (default: basename of first .pli)
+  --help           Show this help and exit
+
+All other flags are passed through to the plic compiler.
+EOF
+  exit 1
+}
+
+die() {
+  echo "plicc: error: $*" >&2
+  exit 1
+}
+
+# --- Parse arguments into typed buckets ---
+pli_files=()   # .pli sources to compile
+obj_files=()   # .o object files for linking
+lib_files=()   # .a archives for linking
+ld_libs=()     # -l prefixed libraries (e.g. -lnet) -> passed to linker
+cc_flags=()    # all other flags -> passed through to plic
+exe_name=""
+cinterop=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --help) usage ;;
+    --cinterop) cinterop=1 ;;
+    -o)
+      [ $# -ge 2 ] || die "-o requires an argument"
+      exe_name="$2"
+      shift
+      ;;
+    *.pli)
+      [ -f "$1" ] || die "source file not found: $1"
+      pli_files+=("$1")
+      ;;
+    *.o)
+      obj_files+=("$1")
+      ;;
+    *.a)
+      lib_files+=("$1")
+      ;;
+    -l*)
+      ld_libs+=("$1")
+      ;;
+    *)
+      cc_flags+=("$1")
+      ;;
+  esac
+  shift
+done
+
+# Require at least one input file
+[ ${#pli_files[@]} -gt 0 ] || [ ${#obj_files[@]} -gt 0 ] || [ ${#lib_files[@]} -gt 0 ] || usage
+
+# --- Compile each .pli to .o ---
+# ${arr[@]+"${arr[@]}"} avoids nounset error on empty arrays
+for pli in "${pli_files[@]+"${pli_files[@]}"}"; do
+  base=$(basename "$pli" .pli)
+  obj="${base}.o"
+
+  echo "plicc: compiling $pli"
+  # -C = compile only (no link), -dELF = ELF object format
+  $PLIC -C -dELF $PLIINC ${cc_flags[@]+"${cc_flags[@]}"} "$pli" -o "$obj" \
+    || die "compilation failed: $pli"
+
+  obj_files+=("$obj")
+done
+
+# --- Determine executable name ---
+if [ -z "$exe_name" ]; then
+  if [ ${#pli_files[@]} -gt 0 ]; then
+    exe_name=$(basename "${pli_files[0]}" .pli)
+  else
+    exe_name="a.out"
+  fi
+fi
+
+# --- Link ---
+# Linker expects .o then .a then libs; archives only satisfy references
+# from objects that precede them on the command line.
+link_inputs=(${obj_files[@]+"${obj_files[@]}"})
+
+if [ ${#lib_files[@]} -gt 0 ]; then
+  link_inputs+=(${lib_files[@]+"${lib_files[@]}"})
+fi
+
+if [ "$cinterop" -eq 1 ]; then
+  echo "plicc: enabling C interop modules"
+  # Word splitting splits CINTEROP_LIBS into separate .o paths
+  link_inputs+=($CINTEROP_LIBS)
+fi
+
+if [ ${#ld_libs[@]} -gt 0 ]; then
+  link_inputs+=(${ld_libs[@]+"${ld_libs[@]}"})
+fi
+
+echo "plicc: linking $exe_name"
+
+# $LDFLAGS and $LIBS intentionally unquoted for word splitting
+# shellcheck disable=SC2086
+$CCLD $LDFLAGS -o "$exe_name" ${link_inputs[@]+"${link_inputs[@]}"} $LIBS \
+  || die "linking failed: $exe_name"
+
+echo "plicc: done - $exe_name"
