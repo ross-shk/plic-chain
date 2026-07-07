@@ -11,9 +11,14 @@ Usage
 -----
     plicc [options] <source.pli|.pl1>... [object.o|archive.a]...
 
-Examples
+Example
 -------
-    echo ' main: proc options(main); put skip list("Hello"); end;' > hello.pli
+Create a sample program:
+
+    echo ' main: proc options(main); display("Hello, world!"); end;' > hello.pli
+
+then run:
+
     plicc hello.pli 
     ./hello
 
