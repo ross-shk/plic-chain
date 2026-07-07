@@ -1,9 +1,11 @@
-plicc -- PL/I Compile & Link Toolchain
-======================================
+plicc
+=====
 
-`plicc` compiles PL/I source files (using Iron Spring PL/I compiler) into Linux
-executables in a single command.  It compiles each `.pli` or `.pl1` source
-to an object file with `plic`, then links them with `gcc`.
+PL/I Compile & Link Toolchain
+
+Compile and link Iron Spring PL/I programs with a single command.
+Each `.pli` or `.pl1` source is compiled to an object file with
+`plic`, then linked into a Linux executable with `gcc`.
 
 Usage
 -----
