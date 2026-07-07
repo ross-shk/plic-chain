@@ -5,7 +5,6 @@
 
 set -o nounset
 set -o pipefail
-# set -o errexit  # Optional; test carefully
 
 PLIC="${PLIC:-plic}"
 CCLD="${CCLD:-gcc}"
@@ -22,7 +21,7 @@ Usage: plicc [options] <source.pli|.pl1>... [object.o|archive.a]...
   Compile PL/I source files and link into a Linux executable.
 
 Options:
-  --cinterop       Use when linking with externally compiled static libraries or object files
+  --cinterop       Link with C interop modules
   --compile        Compile only, do not link
   --out <name>     Output executable name (default: basename of first .pli)
   --verbose        Show progress messages
@@ -86,7 +85,7 @@ for pli in "${pli_files[@]+"${pli_files[@]}"}"; do
   base=$(basename "$pli" .pli)
   base=$(basename "$base" .pl1)
   obj="${base}.o"
-  say "compiling $pli → $obj"
+  say "compiling $pli -> $obj"
   $PLIC -C -dELF $PLIINC ${cc_flags[@]+"${cc_flags[@]}"} "$pli" -o "$obj" \
     || die "compilation failed: $pli"
   rm -f "${base}.lst"
@@ -104,7 +103,7 @@ if [ -z "$exe_name" ]; then
 fi
 
 if [ "$compile_only" -eq 1 ]; then
-  say "done (compile-only) - objects generated"
+  say "done: objects generated (compile-only)"
   exit 0
 fi
 
@@ -123,4 +122,4 @@ say "linking $exe_name"
 $CCLD $LDFLAGS -o "$exe_name" ${link_inputs[@]+"${link_inputs[@]}"} $LIBS \
   || die "linking failed: $exe_name"
 
-say "done - $exe_name"
+say "done: $exe_name"
