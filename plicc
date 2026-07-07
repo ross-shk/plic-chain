@@ -12,7 +12,7 @@ CCLD="${CCLD:-gcc}"
 LDFLAGS="${LDFLAGS:--m32 -no-pie -z muldefs}"
 LIBS="${LIBS:--lprf}"
 CINTEROP_LIBS=(${CINTEROP_LIBS:-/usr/lib/pli/alt/fhs.o /usr/lib/pli/alt/ghs.o})  # Now array
-PLIINC="${PLIINC:--i/usr/lib/pli/include -i/usr/local/include}"
+PLIINC="${PLIINC:--i/usr/lib/pli/include -i/usr/lib/include -i/usr/local/include}"
 
 usage() {
   cat >&2 <<'EOF'
