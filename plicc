@@ -24,7 +24,7 @@ Usage: plicc [options] <source.pli|.pl1>... [object.o|archive.a]...
 Options:
   --cinterop       Link with C interop modules (fhs.o, ghs.o)
   --compile        Compile only, do not link
-  -o <name>        Output executable name (default: basename of first .pli)
+  --out <name>     Output executable name (default: basename of first .pli)
   --verbose        Show progress messages
   --help           Show this help and exit
 
@@ -46,8 +46,8 @@ while [ $# -gt 0 ]; do
     --cinterop) cinterop=1 ;;
     --compile) compile_only=1 ;;
     --verbose) verbose=1 ;;
-    -o)
-      [ $# -ge 2 ] || die "-o requires an argument"
+    --out)
+      [ $# -ge 2 ] || die "--out requires an argument"
       exe_name="$2"
       shift
       ;;
