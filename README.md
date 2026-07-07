@@ -9,7 +9,7 @@ Each `.pli` or `.pl1` source is compiled to an object file with
 
 Usage
 -----
-    plicc [options] <source.pli|.pl1>... [object.o|archive.a]...
+    plicc [command] [options] <source.pli|.pl1>... [object.o|archive.a]...
 
 ### Example
 -------
@@ -22,11 +22,17 @@ then run:
     plicc hello.pli 
     ./hello
 
+Commands
+--------
+
+`compile`
+:   Compile only; do not link.
+
+`help`
+:   Display usage and exit.
+
 Options
 -------
-
-`--compile`
-:   Compile only; do not link.
 
 `--cinterop`
 :   Link with the C interop modules (`fhs.o`, `ghs.o`).  Required when
@@ -39,9 +45,6 @@ Options
 
 `--verbose`
 :   Show progress messages during compilation and linking.
-
-`--help`
-:   Display usage and exit.
 
 Arguments
 ---------
@@ -94,7 +97,7 @@ Compile and link with a linker library flag - `libnet` uses C bindings, so `--ci
 
 Compile only, inspect the object, then link manually:
 
-    plicc --compile module.pli
+    plicc compile module.pli
     nm module.o
     plicc module.o --out prog
 

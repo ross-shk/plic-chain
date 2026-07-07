@@ -17,15 +17,17 @@ usage() {
   cat >&2 <<'EOF'
 PL/I Compiler Toolchain
 
-Usage: plicc [options] <source.pli|.pl1>... [object.o|archive.a]...
+Usage: plicc [command] [options] <source.pli|.pl1>... [object.o|archive.a]...
   Compile PL/I source files and link into a Linux executable.
+
+Commands:
+  compile          Compile only, do not link
+  help             Show this help and exit
 
 Options:
   --cinterop       Link with C interop modules
-  --compile        Compile only, do not link
   --out <name>     Output executable name (default: basename of first .pli)
   --verbose        Show progress messages
-  --help           Show this help and exit
 
 Libraries prefixed with -l are passed directly to the linker. All other flags are passed through to the plic compiler.
 EOF
@@ -39,11 +41,15 @@ say() { [ "$verbose" -eq 1 ] && echo "plicc: $*"; }
 pli_files=() obj_files=() lib_files=() ld_libs=() cc_flags=()
 exe_name="" cinterop=0 compile_only=0 verbose=0
 
+# --- Command dispatch ---
+case "${1:-}" in
+  compile) compile_only=1; shift ;;
+  help)    usage ;;
+esac
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --help) usage ;;
     --cinterop) cinterop=1 ;;
-    --compile) compile_only=1 ;;
     --verbose) verbose=1 ;;
     --out)
       [ $# -ge 2 ] || die "--out requires an argument"
