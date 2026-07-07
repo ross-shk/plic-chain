@@ -11,7 +11,7 @@ Usage
 -----
     plicc [options] <source.pli|.pl1>... [object.o|archive.a]...
 
-Example
+### Example
 -------
 Create a sample program:
 
