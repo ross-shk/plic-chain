@@ -28,7 +28,7 @@ Options:
   --verbose        Show progress messages
   --help           Show this help and exit
 
-All other flags are passed through to the plic compiler.
+Libraries prefixed with -l are passed directly to the linker. All other flags are passed through to the plic compiler.
 EOF
   exit 1
 }
