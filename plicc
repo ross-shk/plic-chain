@@ -22,6 +22,7 @@ Usage: plicc [command] [options] <source.pli|.pl1>... [object.o|archive.a]...
 
 Commands:
   compile          Compile only, do not link
+  run              Compile, link, and run the executable
   help             Show this help and exit
 
 Options:
@@ -39,11 +40,12 @@ say() { [ "$verbose" -eq 1 ] && echo "plicc: $*"; }
 
 # --- Parse arguments ---
 pli_files=() obj_files=() lib_files=() ld_libs=() cc_flags=()
-exe_name="" cinterop=0 compile_only=0 verbose=0
+exe_name="" cinterop=0 compile_only=0 verbose=0 run_after=0
 
 # --- Command dispatch ---
 case "${1:-}" in
   compile) compile_only=1; shift ;;
+  run)     run_after=1; shift ;;
   help)    usage ;;
 esac
 
@@ -129,3 +131,8 @@ $CCLD $LDFLAGS -o "$exe_name" ${link_inputs[@]+"${link_inputs[@]}"} $LIBS \
   || die "linking failed: $exe_name"
 
 say "done: $exe_name"
+
+if [ "$run_after" -eq 1 ]; then
+  say "running ./$exe_name"
+  exec "./$exe_name"
+fi

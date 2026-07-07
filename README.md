@@ -22,11 +22,18 @@ then run:
     plicc hello.pli 
     ./hello
 
+or just use `run` to compile and run:
+
+    plicc run hello.pli
+
 Commands
 --------
 
 `compile`
 :   Compile only; do not link.
+
+`run`
+:   Compile, link, and run the executable.
 
 `help`
 :   Display usage and exit.
