@@ -3,28 +3,29 @@
 # Copyright 2026 Ross Shkurat
 # SPDX-License-Identifier: Apache-2.0
 
-# Exit on undefined variable (catches typos) and pipeline failures
 set -o nounset
 set -o pipefail
+# set -o errexit  # Optional; test carefully
 
-# All variables overridable via the environment
-PLIC="${PLIC:-plic}"                               # PL/I compiler
-CCLD="${CCLD:-gcc}"                                # C linker driver
-LDFLAGS="${LDFLAGS:--m32 -no-pie -z muldefs}"      # linker flags
-LIBS="${LIBS:--lprf}"                              # PL/I runtime library
-CINTEROP_LIBS="${CINTEROP_LIBS:-/usr/lib/pli/alt/fhs.o /usr/lib/pli/alt/ghs.o}"
-PLIINC="${PLIINC:--i/usr/lib/pli/include -i/usr/local/include}"  # -i = plic include dir
+PLIC="${PLIC:-plic}"
+CCLD="${CCLD:-gcc}"
+LDFLAGS="${LDFLAGS:--m32 -no-pie -z muldefs}"
+LIBS="${LIBS:--lprf}"
+CINTEROP_LIBS=(${CINTEROP_LIBS:-/usr/lib/pli/alt/fhs.o /usr/lib/pli/alt/ghs.o})  # Now array
+PLIINC="${PLIINC:--i/usr/lib/pli/include -i/usr/local/include}"
 
 usage() {
   cat >&2 <<'EOF'
 PL/I Compiler Toolchain
 
-Usage: plicc [options] <source.pli>... [object.o|archive.a]... [-llib]...
+Usage: plicc [options] <source.pli|.pl1>... [object.o|archive.a]...
   Compile PL/I source files and link into a Linux executable.
 
 Options:
-  --cinterop       Use when linking with externally compiled object files or libraries
-  -o <name>        Name the output executable (default: basename of first .pli)
+  --cinterop       Link with C interop modules (fhs.o, ghs.o)
+  -c               Compile only, do not link
+  -o <name>        Output executable name (default: basename of first .pli)
+  --verbose        Show progress messages
   --help           Show this help and exit
 
 All other flags are passed through to the plic compiler.
@@ -32,99 +33,84 @@ EOF
   exit 1
 }
 
-die() {
-  echo "plicc: error: $*" >&2
-  exit 1
-}
+die() { echo "plicc: error: $*" >&2; exit 1; }
+say() { [ "$verbose" -eq 1 ] && echo "plicc: $*"; }
 
-# --- Parse arguments into typed buckets ---
-pli_files=()   # .pli sources to compile
-obj_files=()   # .o object files for linking
-lib_files=()   # .a archives for linking
-ld_libs=()     # -l prefixed libraries (e.g. -lnet) -> passed to linker
-cc_flags=()    # all other flags -> passed through to plic
-exe_name=""
-cinterop=0
+# --- Parse arguments ---
+pli_files=() obj_files=() lib_files=() ld_libs=() cc_flags=()
+exe_name="" cinterop=0 compile_only=0 verbose=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --help) usage ;;
     --cinterop) cinterop=1 ;;
+    -c) compile_only=1 ;;
+    --verbose) verbose=1 ;;
     -o)
       [ $# -ge 2 ] || die "-o requires an argument"
       exe_name="$2"
       shift
       ;;
-    *.pli)
+    *.pli|*.pl1)
       [ -f "$1" ] || die "source file not found: $1"
       pli_files+=("$1")
       ;;
-    *.o)
+    *.o|*.obj)
+      [ -f "$1" ] || die "object file not found: $1"
       obj_files+=("$1")
       ;;
     *.a)
+      [ -f "$1" ] || die "archive not found: $1"
       lib_files+=("$1")
       ;;
-    -l*)
-      ld_libs+=("$1")
-      ;;
-    *)
-      cc_flags+=("$1")
-      ;;
+    -l*) ld_libs+=("$1") ;;
+    --) shift; cc_flags+=("$@"); break ;;
+    *) cc_flags+=("$1") ;;
   esac
   shift
 done
 
-# Require at least one input file
 [ ${#pli_files[@]} -gt 0 ] || [ ${#obj_files[@]} -gt 0 ] || [ ${#lib_files[@]} -gt 0 ] || usage
 
-# --- Compile each .pli to .o ---
-# ${arr[@]+"${arr[@]}"} avoids nounset error on empty arrays
+# --- Compile ---
 for pli in "${pli_files[@]+"${pli_files[@]}"}"; do
   base=$(basename "$pli" .pli)
+  base=$(basename "$base" .pl1)
   obj="${base}.o"
-
-  echo "plicc: compiling $pli"
-  # -C = compile only (no link), -dELF = ELF object format
+  say "compiling $pli → $obj"
   $PLIC -C -dELF $PLIINC ${cc_flags[@]+"${cc_flags[@]}"} "$pli" -o "$obj" \
     || die "compilation failed: $pli"
-
   obj_files+=("$obj")
 done
 
-# --- Determine executable name ---
+# --- Output name ---
 if [ -z "$exe_name" ]; then
   if [ ${#pli_files[@]} -gt 0 ]; then
     exe_name=$(basename "${pli_files[0]}" .pli)
+    exe_name=$(basename "$exe_name" .pl1)
   else
     exe_name="a.out"
   fi
 fi
 
-# --- Link ---
-# Linker expects .o then .a then libs; archives only satisfy references
-# from objects that precede them on the command line.
-link_inputs=(${obj_files[@]+"${obj_files[@]}"})
-
-if [ ${#lib_files[@]} -gt 0 ]; then
-  link_inputs+=(${lib_files[@]+"${lib_files[@]}"})
+if [ "$compile_only" -eq 1 ]; then
+  say "done (compile-only) - objects generated"
+  exit 0
 fi
+
+# --- Link ---
+link_inputs=("${obj_files[@]+"${obj_files[@]}"}")
+link_inputs+=("${lib_files[@]+"${lib_files[@]}"}")
 
 if [ "$cinterop" -eq 1 ]; then
-  echo "plicc: enabling C interop modules"
-  # Word splitting splits CINTEROP_LIBS into separate .o paths
-  link_inputs+=($CINTEROP_LIBS)
+  say "enabling C interop modules"
+  link_inputs+=("${CINTEROP_LIBS[@]+"${CINTEROP_LIBS[@]}"}")
 fi
+link_inputs+=("${ld_libs[@]+"${ld_libs[@]}"}")
 
-if [ ${#ld_libs[@]} -gt 0 ]; then
-  link_inputs+=(${ld_libs[@]+"${ld_libs[@]}"})
-fi
-
-echo "plicc: linking $exe_name"
-
-# $LDFLAGS and $LIBS intentionally unquoted for word splitting
+say "linking $exe_name"
 # shellcheck disable=SC2086
 $CCLD $LDFLAGS -o "$exe_name" ${link_inputs[@]+"${link_inputs[@]}"} $LIBS \
   || die "linking failed: $exe_name"
 
-echo "plicc: done - $exe_name"
+say "done - $exe_name"
