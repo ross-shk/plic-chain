@@ -63,8 +63,17 @@ while [ $# -gt 0 ]; do
       [ -f "$1" ] || die "archive not found: $1"
       lib_files+=("$1")
       ;;
-    -l*) ld_libs+=("$1") ;;
+    -l) cc_flags+=("$1") ;;             # bare -l (plic listing default)
+    -l*)                                # -l followed by listing chars or lib name
+      suffix="${1#-l}"
+      if [[ $suffix =~ ^[siaxgmovn]+$ ]]; then
+        cc_flags+=("$1")                # plic listing flags (-lsx, -la, -lg, etc.)
+      else
+        ld_libs+=("$1")                 # linker libraries (-lnet, -lprf, etc.)
+      fi
+      ;;
     --) shift; cc_flags+=("$@"); break ;;
+    [!-]*.*) die "unknown file type: $1 (expected .pli, .pl1, .o, .obj, or .a)" ;;
     *) cc_flags+=("$1") ;;
   esac
   shift
