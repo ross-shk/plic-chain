@@ -88,6 +88,12 @@ done
 
 [ ${#pli_files[@]} -gt 0 ] || [ ${#obj_files[@]} -gt 0 ] || [ ${#lib_files[@]} -gt 0 ] || usage
 
+# Verify compiler is available
+if [ ${#pli_files[@]} -gt 0 ]; then
+  command -v "$PLIC" >/dev/null 2>&1 \
+    || die "PL/I compiler not found: \"$PLIC\" (set PLIC environment variable or install plic)"
+fi
+
 # --- Compile ---
 for pli in "${pli_files[@]+"${pli_files[@]}"}"; do
   base=$(basename "$pli" .pli)
@@ -134,5 +140,5 @@ say "done: $exe_name"
 
 if [ "$run_after" -eq 1 ]; then
   say "running ./$exe_name"
-  exec "./$exe_name"
+  "./$exe_name"
 fi
