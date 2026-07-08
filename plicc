@@ -2,17 +2,14 @@
 # plicc - compile and link PL/I source with Iron Spring in one command
 # Copyright 2026 Ross Shkurat
 # SPDX-License-Identifier: Apache-2.0
-
 set -o nounset
 set -o pipefail
-
 PLIC="${PLIC:-plic}"
 CCLD="${CCLD:-gcc}"
 LDFLAGS="${LDFLAGS:--m32 -no-pie -z muldefs}"
 LIBS="${LIBS:--lprf}"
-CINTEROP_LIBS=(${CINTEROP_LIBS:-/usr/lib/pli/alt/fhs.o /usr/lib/pli/alt/ghs.o})  # Now array
+CINTEROP_LIBS=(${CINTEROP_LIBS:-/usr/lib/pli/alt/fhs.o /usr/lib/pli/alt/ghs.o}) # Now array
 PLIINC="${PLIINC:--i/usr/lib/pli/include -i/usr/lib/include -i/usr/local/include}"
-
 usage() {
   cat >&2 <<'EOF'
 PL/I Compiler Toolchain
@@ -34,10 +31,14 @@ Libraries prefixed with -l are passed directly to the linker. All other flags ar
 EOF
   exit 1
 }
-
 die() { echo "plicc: error: $*" >&2; exit 1; }
 say() { [ "$verbose" -eq 1 ] && echo "plicc: $*"; }
-
+has_listing_flag() {
+  for f in "${cc_flags[@]+"${cc_flags[@]}"}"; do
+    [[ $f == -l?* && ${f#-l} =~ ^[siaxgmovn]+$ ]] && return 0
+  done
+  return 1
+}
 # --- Parse arguments ---
 pli_files=() obj_files=() lib_files=() ld_libs=() cc_flags=()
 exe_name="" cinterop=0 compile_only=0 verbose=0 run_after=0
@@ -93,19 +94,38 @@ if [ ${#pli_files[@]} -gt 0 ]; then
   command -v "$PLIC" >/dev/null 2>&1 \
     || die "PL/I compiler not found: \"$PLIC\" (set PLIC environment variable or install plic)"
 fi
-
 # --- Compile ---
 for pli in "${pli_files[@]+"${pli_files[@]}"}"; do
   base=$(basename "$pli" .pli)
   base=$(basename "$base" .pl1)
   obj="${base}.o"
+  lstfile="${base}.lst"
   say "compiling $pli -> $obj"
-  $PLIC -C -dELF $PLIINC ${cc_flags[@]+"${cc_flags[@]}"} "$pli" -o "$obj" \
-    || die "compilation failed: $pli"
-  rm -f "${base}.lst"
+  $PLIC -C -dELF -ls $PLIINC ${cc_flags[@]+"${cc_flags[@]}"} "$pli" -o "$obj"
+  rc=$?
+
+  # Extract diagnostics from the compiler-generated listing file
+  has_diags=0
+  if [ -f "$lstfile" ]; then
+    while read -r line; do
+      has_diags=1
+      if echo "$line" | grep -q '(ERR[0-9]\+)'; then
+        echo "plicc: error: $pli: $line" >&2
+      else
+        echo "plicc: warning: $pli: $line" >&2
+      fi
+    done < <(grep -E '\(ERR[0-9]+\)|\(WRN[0-9]+\)' "$lstfile")
+  fi
+
+  [ $rc -eq 0 ] || die "compilation failed: $pli"
+
+  # Keep .lst when user asked for it or when there's something to inspect
+  if ! has_listing_flag && [ "$has_diags" -eq 0 ] && [ $rc -eq 0 ]; then
+    rm -f "$lstfile"
+  fi
+
   obj_files+=("$obj")
 done
-
 # --- Output name ---
 if [ -z "$exe_name" ]; then
   if [ ${#pli_files[@]} -gt 0 ]; then
